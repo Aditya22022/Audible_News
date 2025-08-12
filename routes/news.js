@@ -52,45 +52,63 @@ Example: Database returns ['technology', 'business'] */
       If user has preferences → use them prefernceresult is an array of objects rem ..and if user gas fav categories and then userprefrence will return {[sports ,entertainement]} else it would be null.
       If no preferences → empty array*/
       // NEW: Fetch news for each selected category
-      let allArticles = [];
-      
-      if (userCategories.length > 0) {
-         // User has selected categories
-          for (const category of userCategories) {//goes through each category the user selected
-              const url = `https://newsapi.org/v2/top-headlines?country=us&category=${category}&apiKey=${process.env.NEWS_API_KEY}`;
-              const response = await axios.get(url);
-              
-              // What it does: Adds a category field to each article
-              const articlesWithCategory = response.data.articles.map(article => ({
-                  ...article,
-                  category: category
-              }));
-              
-              allArticles = [...allArticles, ...articlesWithCategory];
-              /*What it does: Adds these articles to the main collection
-               Example: if user slected 2 categories and each category has 10 articles then
-                Round 1: allArticles = [10 technology articles]
-                  Round 2: allArticles = [10 technology articles + 10 business articles]*/
-          }
-      } else {
-         // User hasn't selected categories - show general news
-          const url = `https://newsapi.org/v2/top-headlines?country=us&apiKey=${process.env.NEWS_API_KEY}`;
-          const response = await axios.get(url);
-          allArticles = response.data.articles.map(article => ({
-              ...article,
-              category: 'general'
-          }));
-      }
+    let articlesByCategory = [];// used to store articles by category
 
-      // NEW: Limit articles to 12
-      const limitedArticles = allArticles.slice(0, 12);
+if (userCategories.length > 0) {
+    // User has selected categories
+    for (const category of userCategories) {
+        const url = `https://newsapi.org/v2/top-headlines?country=us&category=${category}&apiKey=${process.env.NEWS_API_KEY}`;
+        const response = await axios.get(url);
 
-      res.json({
-          status: 'success',
-          articles: limitedArticles
-      });
+        // Add category field to each article fetched through api
+        const articlesWithCategory = response.data.articles.map(article => ({
+            ...article,
+            category: category
+        }));
+
+        articlesByCategory.push(articlesWithCategory);//all article have now been marked with a category and been stored in this varibale
+    }// but if we display this only na so our display limit is 12 .. and all articlewill only be of the first category chosen so we wanna chose article from each category byinterleaving ex sport ,tech bus ,sports ,tech ,bus and going like this .
+
+    // Interleave articles from each category for a fair mix
+    let allArticles = []; // This will hold the final mixed list of articles
+    let index = 0;        //  tells us which “row” we are on — round 0 means the first article from each category, round 1 means the second article from each category, etc.
+    let added = 0;        // Counter for how many articles we've added so far
+    while (added < 12) {  // Keep going until we've added 12 articles
+        let found = false; // Track if we found at least one article in this round
+        for (let arr of articlesByCategory) { // Go through each category's articles
+            if (arr[index]) { // If this category has an article at this index
+                allArticles.push(arr[index]); // Add it to the final list
+                added++; // Increment the count of added articles
+                found = true; // Mark that we found an article in this round
+                if (added === 12) break; // If we've reached 12, stop immediately
+            }
+        }
+        if (!found) break; // If no articles were found in this round, stop the loop
+        index++; // Move to the next "row" of articles for the next round
+    }
+
+    // Use allArticles for response
+    return res.json({
+        status: 'success',
+        articles: allArticles
+    });
+} else {
+    // User hasn't selected categories - show general news
+    const url = `https://newsapi.org/v2/top-headlines?country=us&apiKey=${process.env.NEWS_API_KEY}`;
+    const response = await axios.get(url);
+    const allArticles = response.data.articles.map(article => ({
+        ...article,
+        category: 'general'
+    }));
+    return res.json({
+        status: 'success',
+        articles: allArticles.slice(0, 12)
+    });
+}
   } catch (error) {
       // Error handling
+      console.error('News fetch error:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to fetch news' });
   }
 });
 
